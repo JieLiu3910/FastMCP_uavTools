@@ -1,0 +1,120 @@
+# Docker environment configuration file example
+# Modify paths to container internal paths
+
+api_url_port: 5000
+
+# UAV file paths (container internal paths)
+uav_route_file: "/app/results/uav_way/uav_way.json"
+uav_image_dir: "/app/data/UAV_images"
+
+# --------------- YOLO Object Detection Parameters -----------------------
+# YOLO model weight file path (container internal path)
+yolo_weights: "/app/configs/yolo11_weights_best.pt"
+
+# YOLO object detection label names list
+yolo_label_names:
+  - "救护车"
+  - "装甲车" 
+  - "公交车" 
+  - "指挥车"
+  - "工程车"
+  - "消防车"
+  - "油罐车"
+  - "发射车"
+  - "警车"
+  - "坦克"
+  - "卡车"
+
+# --------------- Vector Database Configuration Parameters -----------------------
+
+# CLIP model path (if mounted to /app/models)
+clip_model_path: "/app/models/clip-vit-base-patch32"
+
+# MAE model weights (if mounted to /app/models)
+mae_model_path: "/app/models/saved_internvit_model.pth"
+
+# Embedding image paths (container internal paths)
+target_data_path: "/app/data/fleet_999_target"
+history_data_path: "/app/data/fleet_999_history"
+
+# Milvus database configuration
+# When using docker-compose internal network, use container name
+milvus:
+  host: "milvus-standalone"  # Service name in docker-compose
+  port: "19530"
+  collections:
+    history: "clip_history"
+    target: "clip_target"
+
+# If using external Milvus service, configure as:
+# milvus:
+#   host: "10.200.50.5"
+#   port: "19530"
+
+# ------------- MySQL Database Configuration -------------------
+
+mysql_image:
+  host: "mysql"  # Service name in docker-compose
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "Object_detection_db"
+  table_name: "history_object_images"
+
+# If using external MySQL service, configure as:
+# mysql_image:
+#   host: "10.200.50.5"
+#   port: 3306
+
+# MySQL equipment database configuration
+mysql_equipment:
+  host: "mysql"  # Service name in docker-compose
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "Equipments_db"
+  table_name: "equipment_data"
+
+# ------------- Vector + Database Search Configuration -------------------
+
+# Historical target image search parameters
+history_search_params:
+  metric_type: "COSINE"
+  radius: 0.8
+  range_filter: 1.0
+  nprobe: 10
+  limit: 30
+
+# Similar target image search parameters
+target_search_params:
+  metric_type: "COSINE"
+  radius: 0.85
+  range_filter: 1.0
+  nprobe: 10
+  limit: 10
+
+# ------------- CORS Configuration -------------------
+# CORS configuration
+cors:
+  allow_origins: ["*"]
+  allow_credentials: true
+  allow_methods: ["*"]
+  allow_headers: ["*"]
+
+# UAV route planning parameters
+uav_params:
+  uav_max_speed: 200.0
+  uav_cruise_speed: 120.0
+  uav_acceleration: 20.0
+  uav_deceleration: 10.0
+  uav_takeoff_climb_rate: 5.0
+  uav_cruise_alt: 7000.0
+  uav_takeoff_runway_direction: 90.0
+  uav_turn_radius: 500.0
+  shooting_fov_width: 3200.0
+  shooting_fov_height: 1800.0
+  shooting_duration: 60.0
+  shooting_maxnum: 5
+  target_max_speed: 10.0
+  time_interval: 4.0
+

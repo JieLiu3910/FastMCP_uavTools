@@ -1,0 +1,125 @@
+# 参数配置文件
+
+api_url_port: 5000
+
+# UAV文件路径
+# uav_route_file:  "/mnt/ht3_nas/agent_project/agent5/MCPtool/FastMCP_uavTools_v1.3/results/uav_way/uav_way.json"
+# uav_image_dir: "/mnt/ht3_nas/agent_project/agent5/MCPtool/FastMCP_uavTools_v1.3/data/UAV_images"
+uav_route_file:  "./results/uav_way/uav_way.json"
+uav_image_dir: "./data/UAV_images"
+
+
+
+# ---------------   YOLO 目标检测参数  -----------------------
+# YOLO 模型权重文件路径
+# yolo_weights: "/mnt/ht3_nas/agent_project/agent5/MCPtool/FastMCP_uavTools_v1.3/configs/yolo11_weights_best.pt"
+yolo_weights: "./configs/yolo11_weights_best.pt"
+# YOLO目标检测标签名称列表
+yolo_label_names:
+  - "救护车"
+  - "装甲车" 
+  - "公交车" 
+  - "指挥车"
+  - "工程车"
+  - "消防车"
+  - "油罐车"
+  - "发射车"
+  - "警车"
+  - "坦克"
+  - "卡车"
+  # - "井冈山舰"
+
+
+# ---------------    向量库配置参数  -----------------------
+
+# CLIP 模型路径
+clip_model_path: "./model/clip-vit-base-patch32"
+
+# 千河MAE权重
+mae_model_path: "./model/saved_internvit_model.pth"
+# mae_model_path: "/app/model/saved_internvit_model.pth"
+
+# embedding图像路径
+# target_data_path: "./data/fleet_999_target"
+# history_data_path: "./data/fleet_999_history"
+
+# Milvus 数据库配置
+milvus:
+  host: "10.200.50.5"
+  port: "19530"
+  collections:
+    # history: "images_vector_history"
+    # target: "images_vector_target"
+
+    # 和平友谊 + 澳大利亚
+    history: "clip_history"
+    target: "clip_target"
+
+    # 台湾花莲
+    # history: "TW_0829_history"
+    # target: "TW_0829_target"
+
+
+# -------------     MySQL 数据库配置       -------------------
+
+mysql_image:
+  host: "10.200.50.5"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "Object_detection_db"     #  默认历史图像数据库
+  table_name: "history_object_images" # 默认历史图像表名
+
+# MySQL 装备数据库配置
+mysql_equipment:
+  host: "10.200.50.5"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "Equipments_db"
+  table_name: "equipment_data"
+
+
+# -------------     向量+数据库搜索 配置       -------------------
+
+# 历史目标图像搜索参数
+history_search_params:
+  metric_type: "COSINE"
+  radius: 0.80
+  range_filter: 1.0
+  nprobe: 10
+  limit: 30
+
+# 相似目标图像搜索参数
+target_search_params:
+  metric_type: "COSINE"
+  radius: 0.85
+  range_filter: 1.0
+  nprobe: 10
+  limit: 10
+
+
+#  -------------     CORS 配置       -------------------
+# CORS 配置
+cors:
+  allow_origins: ["*"]
+  allow_credentials: true
+  allow_methods: ["*"]
+  allow_headers: ["*"]
+
+# UAV路径规划参数
+uav_params:
+  uav_max_speed: 200.0
+  uav_cruise_speed: 120.0
+  uav_acceleration: 20.0
+  uav_deceleration: 10.0
+  uav_takeoff_climb_rate: 5.0
+  uav_cruise_alt: 7000.0
+  uav_takeoff_runway_direction: 90.0
+  uav_turn_radius: 500.0
+  shooting_fov_width: 3200.0
+  shooting_fov_height: 1800.0
+  shooting_duration: 60.0
+  shooting_maxnum: 5
+  target_max_speed: 10.0
+  time_interval: 4.0

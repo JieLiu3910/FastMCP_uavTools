@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+.dockerignore
+docker-compose.yml
+DOCKER_BUILD.md
+DOCKER_DEPLOYMENT.md
+
+# Documentation (Docker doesn't need documentation files)
+*.md
+!README_EN.md
+docs/
+
+# Installation scripts (for local development only, not needed in Docker image)
+install_cpu.bat
+install_cpu.sh
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Logs
+*.log
+
+# Result files (generated at runtime)
+# results/
+
+# Data files (provided via volume mounts)
+# data/fleet_999_history/
+# data/fleet_999_target/
+# data/object_milvus_data/
+# data/RS_images/
+# data/UAV_images/
+# data/upload_images/
+# data/milvus/
+# data/mysql/
+# data/*.txt
+# data/
+
+# Model files (large, provided via volume mounts)
+# configs/*.pt
+src/*.pt
+
+# Local config file (Docker uses config.docker.yaml)
+configs/config.yaml
+config_manager.py
+# config_manager_docker.py
+
+# Temporary files
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
