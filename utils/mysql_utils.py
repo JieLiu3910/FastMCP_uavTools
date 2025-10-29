@@ -20,23 +20,25 @@ from langchain_core.prompts import PromptTemplate
 from langchain_experimental.sql import SQLDatabaseChain
 from urllib.parse import quote_plus
 from pathlib import Path
+from dotenv import load_dotenv
 
 # 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
+# project_root = Path(__file__).parent.parent
+# if str(project_root) not in sys.path:
+#     sys.path.insert(0, str(project_root))
 from config_manager import load_config
 
+
+#==========================   # 加载环境变量和配置文件  =================================
+
+load_dotenv()
 global_config = load_config()
 
 
-# 硅基流动API配置（用于Text2SQL功能）
-SILICONFLOW_API_KEY = "sk-pganszqmpnhinovsppuayznppyklktaoibghzrkypxokchkd"
-SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-SILICONFLOW_MODEL = "Qwen/QwQ-32B"
+api_key = os.environ.get('API_KEY')
+llm_model= os.environ.get('LLM_MODEL')
+base_url = os.environ.get('BASE_URL')
 
-#====================== =======================================================
 
 def query_image_data(
     id: Optional[List[str]] = None,
@@ -764,12 +766,9 @@ def init_text2sql(
     
         # 初始化大模型
         llm = ChatOpenAI(
-            # model='Qwen3-32B',
-            # api_key='empty',
-            # base_url='http://jb-aionlineinferenceservice-9148783111064637440-8000-nhss-job.z2120.nhss.zhejianglab.com:31080/v1',
-            model=SILICONFLOW_MODEL,  # 指定使用的模型名称
-            api_key=SILICONFLOW_API_KEY,  # API密钥
-            base_url=SILICONFLOW_BASE_URL,  # API基础URL
+            model=llm_model,  # 指定使用的模型名称
+            api_key=api_key,  # API密钥
+            base_url=base_url,  # API基础URL
             temperature=0,
             max_tokens=2000
         )
