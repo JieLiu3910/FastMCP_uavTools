@@ -9,7 +9,6 @@ uav_route_file:  "./results/uav_way/uav_way.json"
 uav_image_dir: "./data/UAV_images"
 
 
-
 # ---------------   YOLO 目标检测参数  -----------------------
 # YOLO 模型权重文件路径
 # yolo_weights: "/mnt/ht3_nas/agent_project/agent5/MCPtool/FastMCP_uavTools_v1.3/configs/yolo11_weights_best.pt"
@@ -45,7 +44,7 @@ mae_model_path: "./model/saved_internvit_model.pth"
 
 # Milvus 数据库配置
 milvus:
-  host: "10.200.50.5"
+  host: "127.0.0.1"
   port: "19530"
   collections:
     # history: "images_vector_history"
@@ -63,7 +62,7 @@ milvus:
 # -------------     MySQL 数据库配置       -------------------
 
 mysql_image:
-  host: "10.200.50.5"
+  host: "127.0.0.1"
   port: 3306
   user: "root"
   password: "123456"
@@ -72,7 +71,7 @@ mysql_image:
 
 # MySQL 装备数据库配置
 mysql_equipment:
-  host: "10.200.50.5"
+  host: "127.0.0.1"
   port: 3306
   user: "root"
   password: "123456"
