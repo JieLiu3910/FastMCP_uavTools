@@ -596,7 +596,7 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
     BROADCAST_INTERVAL = 1  # 无人机数据广播时间间隔，单位：秒 （） 
     EVENT_TYPE = "uavPoint_update"  # 无人机定位点数据
 
-    POINT_INTERVAL = 3  # 无人机点个数间隔（每隔 POINT_INTERVAL 个点广播一次）
+    POINT_INTERVAL = 5  # 无人机点个数间隔（每隔 POINT_INTERVAL 个点广播一次）
 
     # 解析请求数据
     
@@ -636,10 +636,10 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
         print(f"🎯 数据回传间隔: 0.5秒")
 
         # 设置广播点位参数
-        # 无人机开始拍摄前 前N个点位开始
+        # 无人机开始拍摄前N个点位开始
         before_point_index = 0 if start_index - int(num_points / 2 ) < 0 else start_index - int(num_points / 2 )
 
-        # 无人机开始拍位置点位 后显示N个点位结束
+        # 无人机开始拍位置点位后,显示N个点结束
         if start_index + int(num_points / 2 ) > len(waypoints):
             if int(num_points / 2 / POINT_INTERVAL) < 10:
                 after_point_index = len(waypoints)
@@ -659,7 +659,6 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
             for index, waypoint in enumerate(waypoints):
                 # 从开始拍摄前10个点开始广播，开始后50个点结束（展示效果，节省时间），
                 # 真实情况可注释掉这个判断
-
                 
                 if index > before_point_index  and index < start_index:
                     if index % 10 == 0:
@@ -690,7 +689,7 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
                             print(f"❌ 回传第 {index + 1} 个路径点时发生错误: {str(e)}")
                             continue
 
-                if index > start_index and index < after_point_index:
+                if  start_index < index and index < after_point_index:
                     if index % POINT_INTERVAL == 0:
                         try:
                             # 构建单个waypoint的广播数据

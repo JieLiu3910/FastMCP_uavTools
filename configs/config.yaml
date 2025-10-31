@@ -123,3 +123,5 @@ uav_params:
   shooting_maxnum: 5
   target_max_speed: 10.0
   time_interval: 4.0
+  scan_mode: 0  # 0: 扫描，1：螺旋扫描
+  turn_radius: 100.0 # 用于路径平滑的转弯半径

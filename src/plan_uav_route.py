@@ -15,6 +15,8 @@ if str(project_root) not in sys.path:
 
 from config_manager import load_config
 
+uav_config = load_config()["uav_params"]
+
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
@@ -164,13 +166,13 @@ def calculate_uav_flight_time_to_target(
     - 总飞行时间（秒）
     """
     # 从配置文件获取参数
-    uav_max_speed = config["uav_max_speed"]  # 无人机最大速度
-    uav_cruise_speed = config["uav_cruise_speed"]  # 无人机巡航速度
-    uav_acceleration = config["uav_acceleration"]  # 无人机加速度
-    uav_deceleration = config["uav_deceleration"]  # 无人机减速度
-    uav_takeoff_climb_rate = config["uav_takeoff_climb_rate"]  # 无人机起飞爬升率
-    uav_cruise_alt = config["uav_cruise_alt"]  # 无人机巡航高度
-    uav_takeoff_runway_direction = config[
+    uav_max_speed = uav_config["uav_max_speed"]  # 无人机最大速度
+    uav_cruise_speed = uav_config["uav_cruise_speed"]  # 无人机巡航速度
+    uav_acceleration = uav_config["uav_acceleration"]  # 无人机加速度
+    uav_deceleration = uav_config["uav_deceleration"]  # 无人机减速度
+    uav_takeoff_climb_rate = uav_config["uav_takeoff_climb_rate"]  # 无人机起飞爬升率
+    uav_cruise_alt = uav_config["uav_cruise_alt"]  # 无人机巡航高度
+    uav_takeoff_runway_direction = uav_config[
         "uav_takeoff_runway_direction"
     ]  # 起飞跑道方向（度）
 
@@ -233,7 +235,7 @@ def calculate_uav_flight_time_to_target(
 
 
 def plan_uav_path(
-    uav_lat, uav_lon, uav_alt, target_lat, target_lon, target_alt, config
+    uav_lat, uav_lon, uav_alt, target_lat, target_lon, target_alt, uav_config
 ):
     """
     规划无人机从初始位置到目标位置上方的飞行路径
@@ -247,10 +249,10 @@ def plan_uav_path(
     - 路径点列表，每个点包含经纬高和ENU坐标
     """
     # 从配置文件获取参数
-    uav_cruise_speed = config["uav_cruise_speed"]
-    uav_takeoff_climb_rate = config["uav_takeoff_climb_rate"]
-    uav_cruise_alt = config["uav_cruise_alt"]
-    uav_takeoff_runway_direction = config["uav_takeoff_runway_direction"]
+    uav_cruise_speed = uav_config["uav_cruise_speed"]
+    uav_takeoff_climb_rate = uav_config["uav_takeoff_climb_rate"]
+    uav_cruise_alt = uav_config["uav_cruise_alt"]
+    uav_takeoff_runway_direction = uav_config["uav_takeoff_runway_direction"]
 
     # 初始化路径点列表
     path_points = []
@@ -906,18 +908,19 @@ def uav_tracking_shooting(
 
     # 读取配置文件
 
-    config = load_config()["uav_params"]
+    # config = load_config()["uav_params"]
 
     # 获取配置参数
-    uav_cruise_alt = config["uav_cruise_alt"]  # 无人机巡航高度
-    uav_max_speed = config.get("uav_max_speed", 10.0)
-    uav_cruise_speed = config.get("uav_cruise_speed", 10.0)
-    uav_turn_radius = config.get("uav_turn_radius", 100.0)  # 无人机转弯半径
-    fov_width = config.get("shooting_fov_width", 100.0)  # 视场长度
-    fov_height = config.get("shooting_fov_height", 75.0)  # 视场宽度
-    shooting_maxnum = config.get("shooting_maxnum", 5)
-    target_max_speed = config.get("target_max_speed", 10.0)  # 目标最大速度
-    time_interval = config.get("time_interval", 0.5)  # 插值平滑时间间隔
+    uav_cruise_alt = uav_config["uav_cruise_alt"]  # 无人机巡航高度
+    uav_max_speed = uav_config.get("uav_max_speed", 10.0)
+    uav_cruise_speed = uav_config.get("uav_cruise_speed", 10.0)
+    uav_turn_radius = uav_config.get("uav_turn_radius", 100.0)  # 无人机转弯半径
+    fov_width = uav_config.get("shooting_fov_width", 100.0)  # 视场长度
+    fov_height = uav_config.get("shooting_fov_height", 75.0)  # 视场宽度
+    shooting_maxnum = uav_config.get("shooting_maxnum", 5)
+    target_max_speed = uav_config.get("target_max_speed", 10.0)  # 目标最大速度
+    time_interval = uav_config.get("time_interval", 0.5)  # 插值平滑时间间隔
+    scan_mode = uav_config.get("scan_mode", 1)
 
     print("time_interval: ", time_interval)
     # 规划无人机路径到目标点上方
@@ -928,7 +931,7 @@ def uav_tracking_shooting(
         vehicle_lat,
         vehicle_lon,
         uav_cruise_alt,  # 飞到目标点上方，保持巡航高度
-        config,
+        uav_config,
     )
 
     # # 绘制路径
@@ -942,7 +945,7 @@ def uav_tracking_shooting(
         vehicle_lat,
         vehicle_lon,
         uav_cruise_alt,  # 飞到目标点上方，保持巡航高度
-        config,
+        uav_config,
     )
     distance_uav2vehicle = calculate_distance(
         uav_lat, uav_lon, vehicle_lat, vehicle_lon
@@ -953,7 +956,7 @@ def uav_tracking_shooting(
     arrival_time = start_datetime + timedelta(seconds=flight_time_to_target)
 
     # 获取其他配置参数
-    shooting_duration = config["shooting_duration"]  # 单点航拍时间
+    shooting_duration = uav_config["shooting_duration"]  # 单点航拍时间
     # 使用目标最大速度计算目标移动范围
     # 检查根号内的值是否为负数
     sqrt_expr = (
@@ -1290,7 +1293,7 @@ def uav_tracking_shooting(
         # 计算螺旋路径总时间（假设匀速飞行）
         spiral_circumference = 2 * math.pi * spiral_radius
         total_spiral_distance = num_spirals * spiral_circumference
-        uav_cruise_speed = config["uav_cruise_speed"]
+        uav_cruise_speed = uav_config["uav_cruise_speed"]
         total_spiral_time = total_spiral_distance / uav_cruise_speed
 
         # 在平滑后的螺旋路径上等时间间隔采样
@@ -1502,8 +1505,7 @@ def smooth_uav_path_with_bezier(path_points, uav_speed, time_interval):
     - 平滑后的路径点列表，按指定时间间隔输出
     """
     try:
-        config = load_config()["uav_params"]
-        turn_radius = config["turn_radius"]  # 默认100米
+        turn_radius = uav_config["turn_radius"]  # 默认100米
     except:
         turn_radius = 100.0  # 如果无法读取配置文件，则使用默认值
     # 处理嵌套列表的情况
@@ -1793,7 +1795,7 @@ def smooth_uav_path_with_bezier(path_points, uav_speed, time_interval):
     return smoothed_path
 
 
-def smooth_uav_path_with_lineinter(path_points, uav_speed, time_interval, config=None):
+def smooth_uav_path_with_lineinter(path_points, uav_speed, time_interval, uav_config=None):
     """
     使用线性插值对无人机路径进行处理
 
@@ -1821,8 +1823,7 @@ def smooth_uav_path_with_lineinter(path_points, uav_speed, time_interval, config
 
     # 从配置文件读取参数
     try:
-        config = load_config()["uav_params"]
-        turn_radius = config["uav_turn_radius"]  # 默认100米
+        turn_radius = uav_config["uav_turn_radius"]  # 默认100米
     except:
         turn_radius = 100.0  # 如果无法读取配置文件，则使用默认值
 

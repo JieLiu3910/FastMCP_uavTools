@@ -265,11 +265,11 @@ def analyze_route_main(json_file_list: List[str]):
         # 在保存结果时使用
         if rule_based_routes:
             # 去除重复轨迹
-            unique_routes = remove_duplicate_routes(rule_based_routes)
+            # unique_routes = remove_duplicate_routes(rule_based_routes)
        
             # 打印结果摘要
             print("\n可能的车辆行驶路线：")
-            for i, route in enumerate(unique_routes, 1):
+            for i, route in enumerate(rule_based_routes, 1):
                 print(f"{i}. 轨迹 {route['route_id']}")
                 print(f"   起点: {route['start_latitude']:.6f}, {route['start_longitude']:.6f}")
                 print(f"   终点: {route['end_latitude']:.6f}, {route['end_longitude']:.6f}")
@@ -284,7 +284,7 @@ def analyze_route_main(json_file_list: List[str]):
         else:
             print("未发现可能的行驶路线")
 
-        all_routes.append(unique_routes)
+        all_routes.append(rule_based_routes)
         all_json_file_names.append(json_file_name)
 
     # all_results["json_file_name"] = all_json_file_names
