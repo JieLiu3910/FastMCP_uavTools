@@ -136,6 +136,57 @@ def is_polygon_intersects_bbox(geojson: Dict[str, Any], min_lon: float, min_lat:
         return False
 
 
+def calculate_intersection_ratio(geojson: Dict[str, Any], min_lon: float, min_lat: float, max_lon: float, max_lat: float) -> float:
+    """
+    计算 GeoJSON Polygon 与给定矩形边界框的相交面积占边界框面积的比例
+    
+    Args:
+        geojson: GeoJSON 对象，格式如 {"type":"Polygon","coordinates":[[[lon,lat],...]]}
+        min_lon: 边界框最小经度（西）
+        min_lat: 边界框最小纬度（南）
+        max_lon: 边界框最大经度（东）
+        max_lat: 边界框最大纬度（北）
+    
+    Returns:
+        float: 相交面积占边界框面积的比例 (0-1)，如果没有相交则返回0
+            - 0: 完全不相交
+            - 0.5: 相交面积占extent的50%
+            - 1.0: 完全包含或相等
+    
+    Examples:
+        >>> boundary = {"type":"Polygon","coordinates":[[[-118.767,34.483],[-117.349,34.245],[-117.608,33.262],[-119.01,33.499],[-118.767,34.483]]]}
+        >>> ratio = calculate_intersection_ratio(boundary, -118.5, 33.5, -117.5, 34.5)
+        >>> print(f"相交占比: {ratio:.2%}")  # 输出如: 相交占比: 75.32%
+    """
+    try:
+        # 将 GeoJSON 转换为 Shapely Polygon 对象
+        polygon = shape(geojson)
+        
+        # 创建 extent 矩形
+        extent_box = box(min_lon, min_lat, max_lon, max_lat)
+        
+        # 计算 extent 的面积
+        extent_area = extent_box.area
+        
+        if extent_area == 0:
+            return 0.0
+        
+        # 计算相交区域
+        intersection = polygon.intersection(extent_box)
+        
+        # 计算相交面积
+        intersection_area = intersection.area
+        
+        # 计算占比（0-1之间的小数）
+        ratio = intersection_area / extent_area
+        
+        return ratio
+        
+    except Exception as e:
+        print(f"⚠️ 计算相交面积占比时出错: {str(e)}")
+        return 0.0
+
+
 def get_satellite_name_list() -> List[Dict[str, Any]]:
     """
     卫星列表获取工具 - 返回扩展的卫星列表，包含卫星ID和对应的传感器ID列表
@@ -237,53 +288,196 @@ def get_satellite_name_list() -> List[Dict[str, Any]]:
     return extended_satellites
 
 
+# def get_satellite_metadata(
+#     time_start: str,
+#     time_end: str,
+#     extent: List[float],
+#     satellite_list: Optional[List[Dict[str, Any]]] = None,
+#     cloud_percent_min: int = 0,
+#     cloud_percent_max: int = 30,
+# ) -> List[str]:
+#     """
+#     卫星元数据查询工具 - 向卫星元数据API发送POST请求获取卫星影像数据
+
+#     触发关键词: 卫星、影像、元数据、查询、搜索、获取
+
+#     Args:
+#         time_start (str): 获取时间开始，支持字符串格式：
+#             - "2024-01-01 12:00:00" (完整时间格式)
+#             - "2024-01-01" (日期格式)
+#         time_end (str): 获取时间结束，支持格式（同上）
+#         extent (List[float]): 地理范围 [经度1, 纬度1, 经度2, 纬度2]
+#         satellite_list (Optional[List[Dict[str, Any]]]): 卫星列表，如果为None则使用默认列表
+#         cloud_percent_min (int): 最小云量百分比，默认0
+#         cloud_percent_max (int): 最大云量百分比，默认20
+
+#     Returns:
+#         List[str]: 卫星影像的quickViewUri列表
+
+#     Examples:
+#         示例调用（支持字符串时间格式）:
+
+#         # 使用完整时间字符串格式
+#         send_satellite_metadata_request(
+#             time_start="2025-09-01 00:00:00",
+#             time_end="2025-09-30 23:59:59",
+#             extent=[120.866, 37.602, 120.866, 37.602]
+#         )
+
+#         # 使用日期字符串格式
+#         send_satellite_metadata_request(
+#             time_start="2025-09-01",
+#             time_end="2025-09-30",
+#             extent=[120.866, 37.602, 120.866, 37.602]
+#         )
+#     """
+
+#     # API接口地址
+#     api_url = "http://114.116.226.59/api/normal/v5/normalmeta"
+
+#     # 参数验证
+#     if not isinstance(extent, list) or len(extent) != 4:
+#         raise ValueError(
+#             "extent参数必须是包含4个元素的列表 [左上经度（西）, 左上纬度（北）, 右下经度（东）, 右下纬度（南）]"
+#         )
+
+#     # 时间格式转换 - 将字符串格式转换为毫秒时间戳
+#     try:
+#         start_timestamp = calculate_millisecond_timestamp(time_start)
+#         end_timestamp = calculate_millisecond_timestamp(time_end)
+#     except Exception as e:
+#         raise ValueError(f"时间格式转换失败: {e}")
+
+#     # 验证时间范围
+#     if start_timestamp >= end_timestamp:
+#         raise ValueError("time_start必须小于time_end")
+
+#     # 如果没有提供卫星列表，使用默认列表
+#     if satellite_list is None:
+#         satellite_list = get_satellite_name_list()
+
+#     # 构建请求参数
+#     request_data = {
+#         "acquisitionTime": [{"Start": start_timestamp, "End": end_timestamp}],
+#         "tarInputTimeStart": None,
+#         "tarInputTimeEnd": None,
+#         "inputTimeStart": None,
+#         "inputTimeEnd": None,
+#         "cloudPercentMin": cloud_percent_min,
+#         "cloudPercentMax": cloud_percent_max,
+#         "satellite_list": satellite_list,
+#         "extent": extent,
+#         "pageNum": 1,
+#         "pageSize": 20,
+#     }
+
+#     # 设置请求头
+#     headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+#     try:
+#         # 发送POST请求
+#         response = requests.post(
+#             api_url, json=request_data, headers=headers, timeout=30
+#         )
+#         # 检查响应状态码
+#         response.raise_for_status()
+
+#         # response1 = requests.post(
+#         #     "http://localhost:8080/api/push-data",
+#         #     json=response.json(),
+#         #     headers=headers,
+#         #     timeout=30
+#         # )
+#         # # 检查响应状态码
+#         # response1.raise_for_status()
+#         # print("*******************success***************")
+#         # print(response1.json())
+
+#         data = response.json()["data"]
+#         print(f"获取到 {len(data)} 条卫星数据")
+
+#         # 返回JSON响应
+#         return data
+
+#         # data = response.json()["data"]
+#         # image_list = [i["quickViewUri"] for i in data]
+#         # return image_list
+
+#     except requests.exceptions.Timeout:
+#         raise requests.RequestException("请求超时（30秒）")
+#     except requests.exceptions.ConnectionError:
+#         raise requests.RequestException("连接错误，请检查网络连接")
+#     except requests.exceptions.HTTPError as e:
+#         raise requests.RequestException(f"HTTP错误: {e}")
+#     except requests.exceptions.RequestException as e:
+#         raise requests.RequestException(f"请求失败: {e}")
+#     except json.JSONDecodeError:
+#         raise requests.RequestException("响应不是有效的JSON格式")
+
+
+
 def get_satellite_metadata(
     time_start: str,
     time_end: str,
     extent: List[float],
     satellite_list: Optional[List[Dict[str, Any]]] = None,
     cloud_percent_min: int = 0,
-    cloud_percent_max: int = 20,
+    cloud_percent_max: int = 15,
+    max_results: Optional[int] = 30,  # 新增：最大返回结果数，None表示获取所有
+    min_intersection_ratio: float = 0.0,  # 新增：最小相交面积占比（0-1），默认0表示不过滤
 ) -> List[str]:
     """
-    卫星元数据查询工具 - 向卫星元数据API发送POST请求获取卫星影像数据
-
+    卫星元数据查询工具 - 向卫星元数据API发送POST请求获取卫星影像数据，支持相交面积占比过滤
+    
     触发关键词: 卫星、影像、元数据、查询、搜索、获取
-
+    
     Args:
         time_start (str): 获取时间开始，支持字符串格式：
             - "2024-01-01 12:00:00" (完整时间格式)
             - "2024-01-01" (日期格式)
         time_end (str): 获取时间结束，支持格式（同上）
-        extent (List[float]): 地理范围 [经度1, 纬度1, 经度2, 纬度2]
+        extent (List[float]): 地理范围 [左上经度（西）, 左上纬度（北）, 右下经度（东）, 右下纬度（南）]
         satellite_list (Optional[List[Dict[str, Any]]]): 卫星列表，如果为None则使用默认列表
         cloud_percent_min (int): 最小云量百分比，默认0
-        cloud_percent_max (int): 最大云量百分比，默认20
-
+        cloud_percent_max (int): 最大云量百分比，默认15
+        max_results (Optional[int]): 最大返回结果数，None表示获取所有
+        min_intersection_ratio (float): 最小相交面积占比（0-1之间的小数），
+            表示boundary与extent相交区域面积占extent面积的最小比例，默认0表示不过滤
+            - 0: 不过滤（默认）
+            - 0.5: 相交面积至少占extent的50%
+            - 0.8: 相交面积至少占extent的80%
+            - 1.0: 完全覆盖
+    
     Returns:
-        List[str]: 卫星影像的quickViewUri列表
-
+        List[Dict]: 卫星影像数据列表
+    
     Examples:
-        示例调用（支持字符串时间格式）:
-
-        # 使用完整时间字符串格式
-        send_satellite_metadata_request(
-            time_start="2025-09-01 00:00:00",
-            time_end="2025-09-30 23:59:59",
-            extent=[120.866, 37.602, 120.866, 37.602]
-        )
-
-        # 使用日期字符串格式
-        send_satellite_metadata_request(
+        # 基本使用
+        data = get_satellite_metadata(
             time_start="2025-09-01",
             time_end="2025-09-30",
-            extent=[120.866, 37.602, 120.866, 37.602]
+            extent=[120.866, 37.602, 121.866, 38.602]
+        )
+        
+        # 使用相交占比过滤（只保留相交面积>=50%的数据）
+        data = get_satellite_metadata(
+            time_start="2025-09-01",
+            time_end="2025-09-30",
+            extent=[120.866, 37.602, 121.866, 38.602],
+            min_intersection_ratio=0.5  # 0.5 表示 50%
+        )
+        
+        # 严格过滤（只保留相交面积>=80%的数据）
+        data = get_satellite_metadata(
+            time_start="2025-09-01",
+            time_end="2025-09-30",
+            extent=[120.866, 37.602, 121.866, 38.602],
+            min_intersection_ratio=0.8  # 0.8 表示 80%
         )
     """
-
-    # API接口地址
+    
     api_url = "http://114.116.226.59/api/normal/v5/normalmeta"
-
+    
     # 参数验证
     if not isinstance(extent, list) or len(extent) != 4:
         raise ValueError(
@@ -304,64 +498,121 @@ def get_satellite_metadata(
     # 如果没有提供卫星列表，使用默认列表
     if satellite_list is None:
         satellite_list = get_satellite_name_list()
-
-    # 构建请求参数
-    request_data = {
-        "acquisitionTime": [{"Start": start_timestamp, "End": end_timestamp}],
-        "tarInputTimeStart": None,
-        "tarInputTimeEnd": None,
-        "inputTimeStart": None,
-        "inputTimeEnd": None,
-        "cloudPercentMin": cloud_percent_min,
-        "cloudPercentMax": cloud_percent_max,
-        "satellite_list": satellite_list,
-        "extent": extent,
-        "pageNum": 1,
-        "pageSize": 20,
-    }
-
-    # 设置请求头
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
-
-    try:
-        # 发送POST请求
-        response = requests.post(
-            api_url, json=request_data, headers=headers, timeout=30
-        )
-        # 检查响应状态码
-        response.raise_for_status()
-
-        # response1 = requests.post(
-        #     "http://localhost:8080/api/push-data",
-        #     json=response.json(),
-        #     headers=headers,
-        #     timeout=30
-        # )
-        # # 检查响应状态码
-        # response1.raise_for_status()
-        # print("*******************success***************")
-        # print(response1.json())
-
-        data = response.json()["data"]
-        print(f"获取到 {len(data)} 条卫星数据")
-
-        # 返回JSON响应
-        return data
-
-        # data = response.json()["data"]
-        # image_list = [i["quickViewUri"] for i in data]
-        # return image_list
-
-    except requests.exceptions.Timeout:
-        raise requests.RequestException("请求超时（30秒）")
-    except requests.exceptions.ConnectionError:
-        raise requests.RequestException("连接错误，请检查网络连接")
-    except requests.exceptions.HTTPError as e:
-        raise requests.RequestException(f"HTTP错误: {e}")
-    except requests.exceptions.RequestException as e:
-        raise requests.RequestException(f"请求失败: {e}")
-    except json.JSONDecodeError:
-        raise requests.RequestException("响应不是有效的JSON格式")
+    
+    all_data = []
+    filtered_data = []  # 存储相交占比过滤后的数据
+    page_num = 1
+    page_size = 50  # 可以设置较大的每页数量
+    
+    # 判断是否需要相交占比过滤
+    need_ratio_filter = min_intersection_ratio > 0
+    if need_ratio_filter:
+        min_lon, min_lat, max_lon, max_lat = extent[0], extent[1], extent[2], extent[3]
+        print(f"\n🔍 已启用相交面积占比过滤（最小占比: {min_intersection_ratio:.1%}）")
+    
+    while True:
+        # 构建请求参数
+        request_data = {
+            "acquisitionTime": [{"Start": start_timestamp, "End": end_timestamp}],
+            "tarInputTimeStart": None,
+            "tarInputTimeEnd": None,
+            "inputTimeStart": None,
+            "inputTimeEnd": None,
+            "cloudPercentMin": cloud_percent_min,
+            "cloudPercentMax": cloud_percent_max,
+            "satellite_list": satellite_list,
+            "extent": extent,
+            "pageNum": page_num,
+            "pageSize": page_size,
+        }
+        
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        
+        try:
+            response = requests.post(
+                api_url, json=request_data, headers=headers, timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()["data"]
+            
+            # 如果没有数据或数据为空，说明已经获取完所有页
+            if not data:
+                break
+            
+            all_data.extend(data)
+            
+            print(f"已获取第 {page_num} 页，本页 {len(data)} 条，累计 {len(all_data)} 条")
+            
+            # 步骤1: 先进行相交占比过滤（如果启用）
+            if need_ratio_filter:
+                for item in data:
+                    boundary_str = item.get("boundary")
+                    if boundary_str:
+                        try:
+                            # 解析 boundary GeoJSON
+                            boundary_geojson = json.loads(boundary_str) if isinstance(boundary_str, str) else boundary_str
+                            
+                            # 计算相交面积占比
+                            intersection_ratio = calculate_intersection_ratio(
+                                boundary_geojson, min_lon, min_lat, max_lon, max_lat
+                            )
+                            
+                            # 如果占比满足条件，保留该数据
+                            if intersection_ratio >= min_intersection_ratio:
+                                filtered_data.append(item)
+                                print(f"  ID={item.get('id')} 相交占比={intersection_ratio:.1%} ✓ 保留（累计过滤后: {len(filtered_data)} 条）")
+                            else:
+                                print(f"  ID={item.get('id')} 相交占比={intersection_ratio:.1%} ✗ 过滤")
+                                
+                        except Exception as e:
+                            print(f"  ⚠️ 解析 boundary 失败 (ID: {item.get('id')}): {str(e)}")
+                            # 解析失败的记录默认不保留
+                            continue
+                    else:
+                        print(f"  ⚠️ ID={item.get('id')} 没有 boundary 数据，跳过")
+            
+            # 如果本页数据少于pageSize，说明这是最后一页
+            if len(data) < page_size:
+                break
+            
+            # 步骤2: 再应用最大结果数限制（在过滤后的数据上）
+            if max_results:
+                current_count = len(filtered_data) if need_ratio_filter else len(all_data)
+                if current_count >= max_results:
+                    print(f"\n已达到最大结果数限制 ({max_results} 条)，停止获取")
+                    break
+            
+            page_num += 1
+            
+        except requests.exceptions.Timeout:
+            raise requests.RequestException("请求超时（30秒）")
+        except requests.exceptions.ConnectionError:
+            raise requests.RequestException("连接错误，请检查网络连接")
+        except requests.exceptions.HTTPError as e:
+            raise requests.RequestException(f"HTTP错误: {e}")
+        except requests.exceptions.RequestException as e:
+            raise requests.RequestException(f"请求失败: {e}")
+        except json.JSONDecodeError:
+            raise requests.RequestException("响应不是有效的JSON格式")
+    
+    print(f"\n总共获取到 {len(all_data)} 条原始卫星数据")
+    
+    # 返回结果
+    if need_ratio_filter:
+        # 应用 max_results 限制（在已过滤的数据上）
+        if max_results and len(filtered_data) > max_results:
+            filtered_data = filtered_data[:max_results]
+            print(f"应用最大结果数限制: {len(filtered_data)} 条")
+        
+        print(f"✅ 最终结果: 原始 {len(all_data)} 条 → 过滤后 {len(filtered_data)} 条")
+        return filtered_data
+    else:
+        # 如果没有相交占比过滤，直接应用 max_results 限制
+        if max_results and len(all_data) > max_results:
+            all_data = all_data[:max_results]
+            print(f"应用最大结果数限制: {len(all_data)} 条")
+        return all_data
 
 
 def calculate_millisecond_timestamp(
@@ -1019,61 +1270,7 @@ def get_satellite_metadata_from_mysql(
             connection.close()
 
 
-def test_polygon_intersects():
-    """测试 Polygon 与 BBox 空间重叠判断功能"""
-    print("\n" + "="*80)
-    print("🧪 测试地理范围过滤功能（使用 Shapely 进行真实几何重叠判断）")
-    print("="*80 + "\n")
-    
-    # 测试用例1: extent 完全包含 Polygon
-    boundary1 = {
-        "type": "Polygon",
-        "coordinates": [[[-118.767,34.483],[-117.349,34.245],[-117.608,33.262],[-119.01,33.499],[-118.767,34.483]]]
-    }
-    extent1 = [-119.5, 33.0, -117.0, 35.0]  # 完全包含 boundary1
-    result1 = is_polygon_intersects_bbox(boundary1, extent1[0], extent1[1], extent1[2], extent1[3])
-    print(f"✅ 测试1 - extent 完全包含 Polygon: {result1} (期望: True)")
-    print(f"   extent 范围: {extent1}")
-    print(f"   boundary 近似范围: lon=[{-119.01}, {-117.349}], lat=[{33.262}, {34.483}]")
-    
-    # 测试用例2: Polygon 与 extent 部分重叠
-    extent2 = [-118.5, 33.5, -117.5, 34.5]  # 与 boundary1 部分重叠
-    result2 = is_polygon_intersects_bbox(boundary1, extent2[0], extent2[1], extent2[2], extent2[3])
-    print(f"\n✅ 测试2 - Polygon 与 extent 部分重叠: {result2} (期望: True)")
-    print(f"   extent 范围: {extent2}")
-    print(f"   说明: 虽然不完全包含，但有空间面积交集")
-    
-    # 测试用例3: 完全不重叠
-    extent3 = [-120.0, 30.0, -119.5, 31.0]  # 与 boundary1 完全不重叠
-    result3 = is_polygon_intersects_bbox(boundary1, extent3[0], extent3[1], extent3[2], extent3[3])
-    print(f"\n✅ 测试3 - 完全不重叠: {result3} (期望: False)")
-    print(f"   extent 范围: {extent3}")
-    print(f"   说明: extent 在 boundary 西边，没有空间交集")
-    
-    # 测试用例4: extent 完全在 Polygon 内部（Polygon 包含 extent）
-    boundary2 = {
-        "type": "Polygon",
-        "coordinates": [[[-120.0, 35.0], [-117.0, 35.0], [-117.0, 33.0], [-120.0, 33.0], [-120.0, 35.0]]]
-    }
-    extent4 = [-118.5, 33.5, -118.0, 34.0]  # extent 完全在 boundary2 内
-    result4 = is_polygon_intersects_bbox(boundary2, extent4[0], extent4[1], extent4[2], extent4[3])
-    print(f"\n✅ 测试4 - Polygon 包含 extent: {result4} (期望: True)")
-    print(f"   extent 范围: {extent4}")
-    print(f"   boundary 范围: lon=[-120.0, -117.0], lat=[33.0, 35.0]")
-    print(f"   说明: extent 完全在 Polygon 内部，有完全重叠")
-    
-    # 测试用例5: 边界相切（边缘接触但无面积重叠）
-    extent5 = [-120.0, 35.0, -119.0, 36.0]  # 与 boundary2 边缘接触
-    result5 = is_polygon_intersects_bbox(boundary2, extent5[0], extent5[1], extent5[2], extent5[3])
-    print(f"\n✅ 测试5 - 边界相切: {result5} (期望: True)")
-    print(f"   extent 范围: {extent5}")
-    print(f"   说明: Shapely 的 intersects() 在边界接触时也返回 True")
-    
-    print("\n" + "="*80 + "\n")
-
-
 # ==========================================     主函数       ==========================================
-
 
 def main(
     time_start: str,
@@ -1081,7 +1278,7 @@ def main(
     extent: List[float],
     satellite_list: Optional[List[Dict[str, Any]]] = None,
     cloud_percent_min: int = 0,
-    cloud_percent_max: int = 20,
+    cloud_percent_max: int = 10,
     host: str = "localhost",
     port: int = 3306,
     user: str = "root",
@@ -1090,16 +1287,27 @@ def main(
     table_name: str = "RS_images_metadata",
     is_download: bool = True,
     save_dir: str = None,
-    max_retries: int = 3,
+    max_retries: int = 3,   # 最大重试次数
+    max_results: int = 30,  # 最大下载影像数量，None表示获取所有
+    min_intersection_ratio: float = 0.7,  # 最小相交面积占比（0-1），默认0.6表示60%
 ):
     """
     主逻辑函数：下载原始遥感影像并存储有效图像的metadata数据到数据库。
     
     执行流程：
     1. 获取卫星元数据
-    2. 下载所有影像
-    3. 验证影像有效性（过滤空白图像）
-    4. 只保存有效影像的元数据到数据库
+    2. 根据相交占比过滤数据（可选）
+    3. 下载所有影像
+    4. 验证影像有效性（过滤空白图像）
+    5. 只保存有效影像的元数据到数据库
+    
+    Args:
+        min_intersection_ratio: 最小相交面积占比（0-1之间的小数），
+            表示boundary与extent相交区域面积占extent面积的最小比例
+            - 0: 不过滤
+            - 0.5: 至少50%覆盖
+            - 0.6: 至少60%覆盖（默认）
+            - 0.8: 至少80%覆盖
     
     触发关键词: 保存、存储、写入、数据库、MySQL、下载、影像
     """
@@ -1116,6 +1324,8 @@ def main(
             satellite_list=satellite_list,
             cloud_percent_min=cloud_percent_min,
             cloud_percent_max=cloud_percent_max,
+            max_results=max_results,
+            min_intersection_ratio=min_intersection_ratio,
         )
 
         print(f"✓ 获取到 {len(web_result)} 条卫星数据记录")
@@ -1212,28 +1422,38 @@ def main(
 
 if __name__ == "__main__":
     
-    # 测试地理范围过滤功能
-    # test_polygon_intersects()
- 
     # 测试main函数
     # 上海市："extent":[121.8,30.691701,122.118227,31.0]
-    # 洛杉矶："extent": [-118.7109, 34.0061, -117.9987, 34.2530],
-    RS_params = {
-        "time_start": "2025-01-10 00:00:00",
-        "time_end": "2025-01-13 23:59:59",
-        "extent": [121.8,30.691701,122.118227,31.0]
-    }
+    # 洛杉矶："extent": [-118.7109, 34.0061, -117.9987, 34.2530]
 
-    main(**RS_params)  # 传入字典参数
-
-    # 测试数据库查询
-    # RS_query = {
-    #     "acquisitionTime": [{"Start": 1736467200000, "End": 1736553599000}],  # 2025-01-10 到 2025-01-11
-    #     "extent": [-118.7109, 34.0061, -117.9987, 34.2530],
-    #     "cloud_percent_min": 0,
-    #     "cloud_percent_max": 20,
+    # RS_params = {
+    #     "time_start": "2025-04-01 00:00:00",
+    #     "time_end": "2025-10-30 23:59:59",
+    #     "extent": [120.262352,22.675505,120.277485,22.710990],
+    #     "min_intersection_ratio": 0.7,  # 只保留相交占比>=50%的数据（0.5表示50%）
+    #     "max_results": 10,
     # }
-    # result = get_satellite_metadata_from_mysql(**RS_query)
-    # pprint(result)
+
+    # main(**RS_params)  # 传入字典参数
+
+
+
+    # --------- 遍历遥感影像下载区域，下载遥感影像 ---------
+
+    with open('data/遥感影像下载区域.json', 'r', encoding='utf-8') as f:
+        RS_params = json.load(f)
+
+    for key, value in RS_params.items():
+        print(f"下载区域: {key}")
+        save_dir = f'data/RS_images_download/{key}'
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        main(**value, save_dir=save_dir,max_results=50)
+
+        print(f"下载区域: {key} 完成")
+        
+
+   
 
 

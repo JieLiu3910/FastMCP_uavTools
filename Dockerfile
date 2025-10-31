@@ -60,10 +60,10 @@ RUN mkdir -p \
 # COPY ./configs/config.docker.yaml /app/configs/config.default.yaml
 COPY config_manager_docker.py /app/config_manager.py
 # Mount volumes
-VOLUME ["/app/configs"]
-VOLUME ["/app/data"]
-VOLUME ["/app/model"]
-VOLUME ["/app/results"]
+# VOLUME ["/app/configs"]
+# VOLUME ["/app/data"]
+# VOLUME ["/app/model"]
+# VOLUME ["/app/results"]
 
 # Expose port
 EXPOSE 5000
