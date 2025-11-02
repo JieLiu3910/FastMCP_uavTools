@@ -1047,7 +1047,7 @@ def download_image(
     return None
 
 
-def get_satellite_metadata_from_mysql(
+def get_satellite_from_mysql(
     # 数据查询参数
     acquisitionTime: List[Dict[str, int]] = None, # 影像采集时间 {"Start": start_timestamp,"End": end_timestamp}
     # time_start: str = None,      # 获取时间开始,支持字符串格式

@@ -20,7 +20,7 @@ if str(project_root) not in sys.path:
 
 from config_manager import load_config
 
-def search_milvus_history(query_image: str, configs: Dict)->List[Dict]:
+def search_history_from_milvus(query_image: str, configs: Dict)->List[Dict]:
     """
     搜索与输入图像匹配的历史图像
 

@@ -14,67 +14,61 @@ API端点:
 """
 
 # 基础库
+import sys
+import os
+import time
+import glob
+import shutil
+import json
 import asyncio
 import ast
-from email import message
-import glob
-from math import log
-import os
-import json
-import shutil
+import uuid
+import requests
+import socketio
+import uvicorn
+import traceback
+
+from datetime import datetime
 from pathlib import Path
 from pprint import pprint
-import re
-import sys
-import time
-from urllib.parse import unquote, urlparse
-import requests
-from torch.utils import data
-import uvicorn
 from typing import List, Literal, Optional, Union, Dict, Any
-import socketio
-import uuid
-from datetime import datetime
-import traceback
-from PIL import Image
+from urllib.parse import unquote, urlparse
+from urllib.request import urlopen
+from urllib.error import URLError, HTTPError
 
 # 引入热插拔模块
 import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-# API库
+# API库 & MCP库
+from pydantic import BaseModel, Field
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-# MCP库
 from fastapi_mcp import FastApiMCP
 
 
 # 导入自定义工具函数
-from src.img_predictor import predict  # 图像预测
-from src.img_cropper import main as crop_objects  # 图像裁切
-
-from src.mae_search_image import milvus_search_image  # 历史图像搜索
-from src.plan_uav_route import uav_tracking_shooting  # 无人机路线规划
-from config_manager import load_config  # 配置文件解析
-from src.analyze_target_label import analyze_target_label  # 标签分析
-from utils.RS_images_process import get_satellite_metadata_from_mysql
-from utils.analyze_route import analyze_route_main
+from utils.rs_image_utils import get_satellite_from_mysql
+from utils.route_analyzer import analyze_route_main
 from utils.mysql_utils import get_field_names_only, init_text2sql,query_image_data, query_equipment_data
 from utils.mae_embedding_basic import InternVisionConfig
 
-from src.search_history_imgs import search_milvus_history
-from src.search_target_imgs import search_milvus_target
+from src.img_predictor import predict  # 图像预测
+from src.img_cropper import main as crop_objects  # 图像裁切
+from src.uav_route_planner import uav_tracking_shooting  # 无人机路线规划
+from src.target_label_analyzer import analyze_target_label  # 标签分析
+from src.mae_milvus_searcher import search_image_from_milvus as mae_searcher 
+from src.clip_milvus_searcher import search_image_from_milvus as clip_searcher
 
+# 导入配置文件
+from config_manager import load_config  # 配置文件解析
 from dotenv import load_dotenv
 load_dotenv()
 
 
-import os
-print("当前环境变量:", os.environ)
 
 # 全局配置信息
 global_config = load_config()
@@ -86,6 +80,7 @@ print(f'{"=" * 100}\n')
 
 
 # ================================== Hot-reloading config ==================================
+
 class ConfigUpdateHandler(FileSystemEventHandler):
     def on_modified(self, event):
         config_file_path = os.path.join(ROOT_DIR, "configs", "config.yaml")
@@ -125,7 +120,6 @@ def start_config_watcher():
 
 # =========================================  基本配置信息  =========================================
 
-#region 参数设置
 
 # 服务端口
 PORT = global_config["api_url_port"]
@@ -171,7 +165,9 @@ HISTORY_IMAGE_DIR.mkdir(exist_ok=True)
 OBJECTS_IMAGE_DIR.mkdir(exist_ok=True)
 RS_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
+
 # =========================================  定义请求模型  =========================================
+
 class RSImagePushRequest(BaseModel):
     RSImagePushData: Optional[Dict[str, Any]] | List[Dict[str, Any]] = None # 遥感影像元数据
 
@@ -337,7 +333,6 @@ class EquipmentQueryRequest(BaseModel):
 # =====================================       Socket.IO 服务器       ====================================
 # ======================================================================================================
 
-
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins="*",  # 允许所有来源，生产环境中应该限制具体域名
@@ -402,9 +397,6 @@ socket_app = socketio.ASGIApp(sio, app)
 # =====================================       FastAPI 路由        ======================================
 # ======================================================================================================
 
-# region 无人机侦察智能体路由接口
-
-
 @app.get("/", operation_id="root")
 async def root():
     """根路径 - API信息"""
@@ -450,13 +442,11 @@ async def root():
         },
     }
 
-#endregion 
 
 # ====================================   无人机图像处理工具路由   ====================================
 
 #tag 无人机侦察工具路由
 
-# UAV侦察区域路由
 @app.post("/uav_trigger", operation_id="uav_trigger")
 async def uav_trigger(request: UAVTriggerRequest):
     """
@@ -580,6 +570,7 @@ async def uav_planner(request: UAVScanRequest):
         print(f"❌ {error_msg}")
         print(f"错误详情:\n {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
+
 
 @app.post("/broadcast_uavPoint", operation_id="broadcast_uavPoint")
 async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
@@ -916,22 +907,6 @@ async def img_cropper(request: CropRequest):
 
     try:
         message_id = str(uuid.uuid4())
-
-        # 定义类别列表（根据自己的类别映射表填写，若不填写，则使用如下默认类别映射表）
-        # classes = [
-        #     "ambulance",
-        #     "armored_vehicle",
-        #     "bus",
-        #     "command_vehicle",
-        #     "engineering_vehicle",
-        #     "fire_truck",
-        #     "fuel_tanker",
-        #     "launch_vehicle",
-        #     "police_car",
-        #     "tank",
-        #     "truck"
-        # ]
-
         # 根据图像文件名构造对应的检测结果JSON文件路径
         json_path, image_url = resolve_file_path(request.predicted_json_path)
 
@@ -1033,8 +1008,8 @@ async def objects_searcher(request: TargetSearchRequest):
 
             try:
                 # 检索目标图像（直接传递文件路径）
-                # target_results = milvus_search_image(query_image=image_path, query_type="target")
-                target_results = search_milvus_target(query_image=image_path,configs=global_config)
+                # target_results = search_image_from_milvus(query_image=image_path, query_type="target")
+                target_results = clip_searcher(query_image=image_path,configs=global_config)
 
                 print(f"找到 {len(target_results)} 个目标图像相似结果")
 
@@ -1101,10 +1076,7 @@ async def objects_searcher(request: TargetSearchRequest):
         raise HTTPException(status_code=500, detail=error_msg)
     
 
-@app.post(
-    "/history_searcher",
-    operation_id="history_searcher",
-)
+@app.post("/history_searcher",operation_id="history_searcher")
 async def history_searcher(request: TargetSearchRequest):
     """
     处理图像并进行历史图像搜索
@@ -1120,6 +1092,7 @@ async def history_searcher(request: TargetSearchRequest):
     Returns:
         JSON响应：历史图像检索结果和结果图片地址
     """
+
     try:
         message_id = str(uuid.uuid4())
 
@@ -1154,13 +1127,15 @@ async def history_searcher(request: TargetSearchRequest):
             try:
             
                 # ----------  stpe1：从 Milvus 获取相似度信息 ----------
-                # milvus_results = milvus_search_image(query_image=image_path, query_type="history")
-                milvus_results = search_milvus_history(query_image=image_path,configs=global_config)
+
+                # milvus_results = search_image_from_milvus(query_image=image_path, query_type="history")
+                milvus_results = clip_searcher(query_image=image_path,configs=global_config)
                 print(f"Milvus历史图像相似结果： {len(milvus_results)} 个")
                 # pprint(milvus_results)
                 print("-"*100)
 
                 # ----------  step2：根据milvus检索结果id参数和输入的时间地点完成数据库检索 ----------
+
                 result_ids = []
                 for result in milvus_results:
                     result_ids.append(result["id"])
@@ -1276,6 +1251,7 @@ async def analyze_router(request: RouteAnalysisRequest):
     Returns:
         response: 车辆历史图像搜索结果的路径信息
     """
+
     try:
         message_id = str(uuid.uuid4())
         all_results = analyze_route_main(request.history_json_list)
@@ -1385,10 +1361,15 @@ async def broadcast_default(input_data: Dict[str, Any]) -> JSONResponse:
       
         # 广播数据到所有连接的客户端
         await sio.emit(EVENT_TYPE, input_data)
-        if input_data.get("data_count"):
-            print(f"📡 广播输入数据: {input_data['data_count']}条")
+        if input_data.get("type"):
+            print(f"🛜 广播数据类型: {input_data['type']}")
         else:
-            print(f"📡 广播输入数据 no data_count field")
+            print(f"⚠️ 广播输入数据 No [ Type ] field!")
+
+        if input_data.get("data_count"):
+            print(f"🛜 广播数据数量: {input_data['data_count']}条")
+        else:
+            print(f"⚠️ 广播输入数据 No [ data_count ] field!")
 
         return JSONResponse(content=input_data)
 
@@ -1449,152 +1430,6 @@ async def broadcast_equipData(equip_data: Dict[str, Any] | List[Dict[str, Any]] 
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-@app.post("/listen_uav_broadcast", operation_id="listen_uav_broadcast")
-async def listen_uav_broadcast(waypoint_threshold: int = 20,img_index: int = 0, img_dir: str = None) -> Optional[str]:
-    """
-    监听无人机数据广播，当接收到超过指定数量的 waypoint 后返回随机图像
-
-    Args:
-        waypoint_threshold: waypoint 数量阈值（默认20）
-
-    Returns:
-        selected_image: 随机选择的图像路径
-    """
-   
-    img_dir = img_dir or os.path.join(ROOT_DIR, "data", "UAV_images")
-    img_list = glob.glob(os.path.join(img_dir, "*.jpg")) + glob.glob(os.path.join(img_dir, "*.png"))
-
-    # ✅ 使用 asyncio.Event 来实现可靠的异步信号传递
-    complete_event = asyncio.Event()
-
-    # 使用字典来存储共享状态（避免闭包变量同步问题）
-    state = {"waypoint_counter": 0, "selected_image": None}
-
-    # 创建 Socket.IO 客户端
-    sio = socketio.AsyncClient()
-
-    @sio.on("uav_anchor_point_update")
-    def on_uav_data(data):  # ✅ 改为同步函数
-        state["waypoint_counter"] += 1
-
-        # 只在达到阈值时打印详细信息
-        if (
-            state["waypoint_counter"] <= waypoint_threshold
-            or state["waypoint_counter"] % 10 == 0
-        ):
-            print(
-                f"📡 接收到 waypoint 数据，当前计数: {state['waypoint_counter']}/{waypoint_threshold}"
-            )
-
-        if (
-            state["waypoint_counter"] >= waypoint_threshold
-            and not complete_event.is_set()
-        ):
-            print(
-                f"✅ 已接收 {state['waypoint_counter']} 个 waypoint（阈值: {waypoint_threshold}），选择图像"
-            )
-            
-            state["selected_image"] = img_list[img_index]
-            print(f"📸 选择的图像: {state['selected_image']}")
-            # 设置完成事件，通知主循环退出
-            print(
-                f"🔍 DEBUG [回调]: 设置前 complete_event.is_set() = {complete_event.is_set()}"
-            )
-            complete_event.set()  # ✅ 使用 asyncio.Event 来通知主循环
-            print(
-                f"🔍 DEBUG [回调]: 设置后 complete_event.is_set() = {complete_event.is_set()}"
-            )
-            print(f"🚩 已设置完成事件，准备退出监听")
-            sys.stdout.flush()  # 强制刷新输出
-            # 注意：不在回调中断开连接，避免中断事件循环
-
-    @sio.on("connection_status")
-    async def on_connection_status(data):
-        print(f"📡 连接状态: {data}")
-
-    @sio.on("room_status")
-    async def on_room_status(data):
-        print(f"📡 房间状态: {data}")
-
-    try:
-        print(f"🔌 连接到 Socket.IO 服务器: {global_config['API_BASE_URL']}")
-        await sio.connect(global_config['API_BASE_URL'])
-        print("✅ Socket.IO 连接成功")
-
-        # 等待连接稳定
-        await asyncio.sleep(0.5)
-
-        # 加入 uavData 房间 - 使用正确的事件名 'join_room'
-        await sio.emit("join_room", {"room": "uavData"})
-        print("📤 已发送加入 uavData 房间请求")
-
-        # 等待房间加入确认
-        await asyncio.sleep(1)
-
-        # 等待广播完成或超时
-        timeout = 120  # 120 秒超时
-        print(f"⏳ 开始监听广播数据（超时: {timeout}秒）...")
-        print(
-            f"🔍 DEBUG [主循环]: 初始 state['selected_image'] = {state['selected_image']}"
-        )
-
-        # ✅ 使用轮询方式检查状态（更可靠，避免事件循环隔离问题）
-        start_time = time.time()
-        check_interval = 0.2  # 每 200ms 检查一次
-
-        while state["selected_image"] is None:
-            await asyncio.sleep(check_interval)
-            elapsed = time.time() - start_time
-
-            # 检查超时
-            if elapsed >= timeout:
-                print(
-                    f"⚠️ 监听超时 ({timeout}秒)，已接收 {state['waypoint_counter']} 个 waypoint"
-                )
-                # 即使超时，如果已经接收到一些数据，也尝试选择图像
-                if state["waypoint_counter"] > 0:
-                    print(
-                        f"⚠️ 尝试使用已接收的 {state['waypoint_counter']} 个 waypoint 选择图像"
-                    )
-                    state["selected_image"] = (
-                        img_list[img_index]
-                    )  # 随机选择一张图像
-                break
-
-        # 检查是否成功完成
-        if state["selected_image"]:
-            print(
-                f"🔍 DEBUG [主循环]: 检测到 selected_image = {state['selected_image']}"
-            )
-            print(
-                f"✅ 成功检测到完成信号，waypoint_counter: {state['waypoint_counter']}"
-            )
-            print(f"⏱️  等待时间: {time.time() - start_time:.2f}秒")
-            sys.stdout.flush()  # 强制刷新输出
-
-        # 立即断开连接，停止接收更多数据
-        if sio.connected:
-            print("🔌 立即断开 Socket.IO 连接...")
-            await sio.disconnect()
-            print("✅ 已断开 Socket.IO 连接")
-            # 给事件循环一些时间来清理资源
-            await asyncio.sleep(0.5)
-
-        # 所有情况下都返回选择的图像
-        print(f"🎯 监听完成，返回图像: {state['selected_image']}")
-        print(
-            f"🔍 DEBUG [listen_uav_broadcast]: 即将返回，selected_image = {state['selected_image']}"
-        )
-        sys.stdout.flush()  # 强制刷新输出
-        return state["selected_image"]
-
-    except Exception as e:
-        error_msg = f"❌ Socket.IO 监听失败: {str(e)}"
-        print(f"❌ {error_msg}")
-        print(f"详细错误: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
 @app.post("/broadcast_geocode", operation_id="broadcast_geocode")
 async def broadcast_geocode(request: GeocodeRequest):
     """
@@ -1641,7 +1476,6 @@ async def broadcast_geocode(request: GeocodeRequest):
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-# 添加Socket.IO房间管理路由
 @app.get("/socketio/rooms", operation_id="get_socketio_rooms")
 async def get_socketio_rooms():
     """
@@ -1925,8 +1759,8 @@ async def RSimage_query(request: RSimageRrequest):
         print(f"  完整参数: {request_data}")
         print(f"{'='*80}\n")
 
-        # Step 1: 调用 get_satellite_metadata_from_mysql 获取遥感影像元数据
-        satellite_metadata = get_satellite_metadata_from_mysql(**request_data)
+        # Step 1: 调用 get_satellite_from_mysql 获取遥感影像元数据
+        satellite_metadata = get_satellite_from_mysql(**request_data)
 
         if not satellite_metadata or len(satellite_metadata) == 0:
             raise HTTPException(status_code=404, detail="未找到符合条件的遥感影像数据")
@@ -1959,7 +1793,7 @@ async def RSimage_query(request: RSimageRrequest):
 
 
 @app.post('/data_search', operation_id="data_search")
-async def data_search(request: str = Body(...)) -> JSONResponse:
+async def search_equipment_from_sql(request: str = Body(...)) -> JSONResponse:
     """ 
     基于自然语言查询数据库的Text2SQL服务。
 
@@ -2078,40 +1912,9 @@ async def satellite_time_search(request: strTypeRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-@app.post("/test", operation_id="test")
-async def test(input_data: str = Body(...)) -> JSONResponse:
-    """
-    测试接口
-    """
-    return JSONResponse(content={"message": "测试接口"})
-
-
-@app.post("/test", operation_id="test")
-async def test(input_data: str = Body(...)) -> JSONResponse:
-    """
-    测试接口
-    """
-    return JSONResponse(content={"message": "测试接口"})
-
-
 # ============================================    function tools   =================================================
 
 #tag 功能函数
-
-from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
-
-
-def check_url_exists(url):
-    """
-    检查URL是否存在
-    """
-    try:
-        with urlopen(url, timeout=5) as response:
-            return response.getcode() == 200
-    except (URLError, HTTPError):
-        return False
-
 
 def parse_time_string(time_str: str) -> datetime.time:
     """
@@ -2268,7 +2071,6 @@ def resolve_file_path(input_file: str, save_dir: Optional[str] = None) -> tuple[
 
 
 # 配置静态文件服务 - 在所有API路由定义之后挂载，避免路由冲突
-## 为子目录提供更明确的访问路径（可选，便于API文档和使用）
 
 app.mount(
     "/results/photographs",
@@ -2335,6 +2137,7 @@ mcp = FastApiMCP(
 mcp.mount()
 
 if __name__ == "__main__":
+
     # 启动FastAPI-MCP服务器 with Socket.IO
     print("🚀 启动API服务/Socket.IO/MCP")
     print(f"📍API文档地址: http://localhost:{PORT}/docs")
@@ -2342,11 +2145,3 @@ if __name__ == "__main__":
 
     # 使用Socket.IO ASGI应用启动服务器
     uvicorn.run(socket_app, host="0.0.0.0", port=PORT)
-
-    # # 启动fastMCP服务器
-    # try:
-    #     # 启动HTTP服务器，FastMCP会自动在/mcp路径提供MCP协议服务
-    # mcp.run(transport="sse", host="0.0.0.0", port=5001)
-    # except Exception as e:
-    #     print(f"❌ 服务器启动失败: {e}")
-    #     print("请检查端口8000是否被占用")
