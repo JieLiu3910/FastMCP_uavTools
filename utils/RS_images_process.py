@@ -1422,25 +1422,33 @@ def main(
 
 if __name__ == "__main__":
     
-    # 测试main函数
+    # ---------  单个地区输入参数下载影像  ----------
+
     # 上海市："extent":[121.8,30.691701,122.118227,31.0]
     # 洛杉矶："extent": [-118.7109, 34.0061, -117.9987, 34.2530]
 
     # RS_params = {
-    #     "time_start": "2025-04-01 00:00:00",
-    #     "time_end": "2025-10-30 23:59:59",
-    #     "extent": [120.262352,22.675505,120.277485,22.710990],
-    #     "min_intersection_ratio": 0.7,  # 只保留相交占比>=50%的数据（0.5表示50%）
-    #     "max_results": 10,
+    #     "time_start": "2025-01-10 00:00:00",
+    #     "time_end": "2025-01-13 23:59:59",
+    #     "extent": [-118.7109, 34.0061, -117.9987, 34.2530],
+    #     "min_intersection_ratio": 0.3,  # 只保留相交占比>=50%的数据（0.5表示50%）
+    #     "max_results": 15,
+    # }
+
+    # RS_params = {
+    #     "time_start": "2025-08-29 00:00:00",
+    #     "time_end": "2025-08-29 23:59:59",
+    #     "extent": [121.574012, 22.739218, 123.086970, 24.520513],
+    #     "min_intersection_ratio": 0,  # 只保留相交占比>=50%的数据（0.5表示50%）
+    #     "max_results": 20
     # }
 
     # main(**RS_params)  # 传入字典参数
 
 
+    # ---------  遍历下载区域json文件下载 ---------
 
-    # --------- 遍历遥感影像下载区域，下载遥感影像 ---------
-
-    with open('data/遥感影像下载区域.json', 'r', encoding='utf-8') as f:
+    with open('data/热点事件遥感影像下载.json', 'r', encoding='utf-8') as f:
         RS_params = json.load(f)
 
     for key, value in RS_params.items():
@@ -1449,7 +1457,7 @@ if __name__ == "__main__":
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        main(**value, save_dir=save_dir,max_results=50)
+        main(**value, save_dir=save_dir,max_results=30,min_intersection_ratio=0)
 
         print(f"下载区域: {key} 完成")
         

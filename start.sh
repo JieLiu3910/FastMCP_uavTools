@@ -101,7 +101,7 @@ elif [ $# -gt 0 ]; then
 elif [ "$0" = "${BASH_SOURCE[0]}" ]; then
     # 如果是作为可执行文件运行（./start.sh），默认启动API服务
     echo "▶️  启动API服务（默认行为）..."
-    echo "💡 提示：如需仅激活环境，请使用 source start.sh 或 ./start.sh shell"
+    echo "💡 提示：如需仅激活环境，请使用 (linux) source start.sh  或 (windows) ./start.sh shell"
     echo "=========================================="
     uv run api_server.py
 else
