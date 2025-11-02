@@ -23,7 +23,7 @@ from utils.mae_embedding_basic import load_model, InternVisionConfig
 from config_manager import load_config
 
 
-def milvus_search_image(query_image: str, query_type:Literal["history", "target"], config_file: Dict = None)->List[Dict]:
+def search_image_from_milvus(query_image: str, query_type:Literal["history", "target"], config_file: Dict = None)->List[Dict]:
     """
     搜索与输入图像匹配的历史图像
 
