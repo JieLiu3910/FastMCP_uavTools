@@ -412,12 +412,24 @@ def query_equipment_data(
 
         # region 筛选
         if keyRegion is not None:
+            # 如果keyRegion包含"霍尔木兹"，则转换为"霍尔木兹海峡"
+            if "霍尔木兹" in keyRegion:
+                keyRegion = "霍尔木兹海峡"
+                print("✓ 检测到'霍尔木兹'关键字，自动转换为标准区域名称: 霍尔木兹海峡")
+                
             where_clauses.append("keyRegion = %s")
             params.append(keyRegion)
             print(f"✓ 区域筛选: {keyRegion}")
 
         # topic 筛选
         if topic is not None:
+            if "太空" in topic or "天空" in topic:
+                topic = "太空态势专题"
+                print("✓ 检测到'太空'关键字，自动转换为标准专题名称: 太空态势专题")
+            if "阿拉伯" in topic:
+                topic = "阿拉伯半岛态势专题"
+                print("✓ 检测到'阿拉伯'关键字，自动转换为标准专题名称: 阿拉伯半岛态势专题")
+
             where_clauses.append("topic = %s")
             params.append(topic)
             print(f"✓ 主题筛选: {topic}")

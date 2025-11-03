@@ -35,10 +35,12 @@ dependencies = [
     "ultralytics>=8.3.203",
     "websockets>=15.0.1",
     "watchdog>=4.0.0",
+    "dotenv>=0.9.9",
 ]
 
 [[tool.uv.index]]
 url="https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
 
 [tool.setuptools.packages.find]
 where = ["."]

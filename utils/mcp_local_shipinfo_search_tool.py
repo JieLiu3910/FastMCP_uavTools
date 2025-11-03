@@ -27,7 +27,7 @@ DB_TABLE = os.getenv("DB_TABLE", "shipinfo_metadata")
 
 
 @mcp.tool
-def local_shipinfo_search(
+def shipinfo_search_tool(
     longitude: float,
     latitude: float,
     radius: int = 50,
@@ -38,7 +38,7 @@ def local_shipinfo_search(
     db_password: str = DB_PASSWORD,
     db_name: str = DB_NAME,
     db_table: str = DB_TABLE
-) -> Dict[str, Any]:
+) :
     """
     从本地数据库查询指定区域和时间范围内的船舶信息。
 
@@ -68,6 +68,8 @@ def local_shipinfo_search(
         "data": [],
         "message": ""
     }
+
+    ships_info = []
 
     try:
         connection = pymysql.connect(
@@ -128,32 +130,38 @@ def local_shipinfo_search(
             from datetime import datetime, date
             
             for ship in ship_data:
+
                 # Convert Decimal to float for latitude and longitude
-                if 'latitude' in ship and ship['latitude'] is not None:
-                    ship['latitude'] = float(ship['latitude'])
-                if 'longitude' in ship and ship['longitude'] is not None:
-                    ship['longitude'] = float(ship['longitude'])
+                if "latitude" in ship and ship["latitude"] is not None:
+                    ship["latitude"] = float(ship["latitude"])
+                if 'longitude' in ship and ship["longitude"] is not None:
+                    ship["longitude"] = float(ship["longitude"])
+                if "ship_type" in ship and ship["ship_type"] is None:
+                    ship["ship_type"] = ""
+                if "draft"  in ship and ship["draft"] is None:
+                    ship["draft"] = ""
+                if "ship_length" in ship and ship["ship_length"] is None:
+                    ship["ship_length"] = ""
+                if "ship_width" in ship and ship["ship_width"] is None:
+                    ship["ship_width"] = ""
+                if "ship_name" in ship and ship["ship_name"] is None:
+                    ship["ship_name"] = ""
+                if "call_sign" in ship and ship["call_sign"] is None:
+                    ship["call_sign"] = ""
+                if "pre_loading_port" in ship and ship["pre_loading_port"] is None:
+                    ship["pre_loading_port"] = ""
+                if "pre_loading_time" in ship and ship["pre_loading_time"] is None:
+                    ship["pre_loading_time"] = ""
                 
-                # Convert datetime to ISO format string
+                ship["latest_ship_position"] = ""
+
+                ship.pop("location", None) 
+                
+            #     # Convert datetime to ISO format string
                 if 'query_time' in ship and ship['query_time'] is not None:
                     if isinstance(ship['query_time'], (datetime, date)):
                         ship['query_time'] = ship['query_time'].isoformat()
                 
-                # Parse location POINT text
-                if 'location' in ship and ship['location']:
-                    # ST_AsText returns format 'POINT(lon lat)', we parse it to a dict
-                    try:
-                        # Remove 'POINT(' and ')' and split by space
-                        coords_str = ship['location'].replace('POINT(', '').replace(')', '')
-                        coords = coords_str.split()
-                        ship['location'] = {
-                            'longitude': float(coords[0]), 
-                            'latitude': float(coords[1])
-                        }
-                    except (ValueError, IndexError, AttributeError) as e:
-                        # Handle potential parsing errors
-                        print(f"⚠ 解析location字段失败: {e}, 原始值: {ship['location']}")
-                        ship['location'] = None
 
             # --------- step2 广播船舶数据 ---------
             broadcast_payload = {
@@ -162,6 +170,7 @@ def local_shipinfo_search(
                 "data_count": len(ship_data),
                 "data": ship_data
             }
+
 
             # 设置请求头
             headers = {
@@ -208,6 +217,6 @@ def local_shipinfo_search(
 
 if __name__ == "__main__":
     print("🚀 启动本地船舶信息查询MCP服务...")
-    print(f"工具名称: local_shipinfo_search")
+    print(f"工具名称: shipinfo_search_tool")
     
-    mcp.run(transport="sse")
+    mcp.run(transport="sse", host="0.0.0.0")

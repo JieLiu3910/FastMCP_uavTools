@@ -1090,9 +1090,16 @@ if __name__ == "__main__":
     # mcp.run(transport='sse')
 
     # 示例1：查询并保存船舶数据
-    save_shipinfo_to_db(center_x=104.764948, center_y=28.792433)
-    
+    # save_shipinfo_to_db(center_x=104.764948, center_y=28.792433)  //
+    # save_shipinfo_to_db(center_x=121.63, center_y=24.0)         //花莲港附近
+    # save_shipinfo_to_db(center_x=121.24, center_y=25.11)         //桃园机场附近
+    #save_shipinfo_to_db(center_x=121.76, center_y=25.16)         #//滨海公园附近
+    # save_shipinfo_to_db(center_x=120.499, center_y=24.277)         #//台中公园附近24.277787715712975, 120.49902044996074
+    # save_shipinfo_to_db(center_x=120.2748, center_y=22.599)         #//高雄公园附近
 
+
+    save_shipinfo_to_db(center_x=118.04656, center_y=24.45498)
+    # 24.454983443084515, 118.04656345803896  厦门嵩屿
     # 示例2：使用空间索引查询指定半径内的船舶
     # ships = query_ships_by_radius(
     #     center_longitude=104.764948,

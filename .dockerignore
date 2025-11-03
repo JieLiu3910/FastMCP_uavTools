@@ -39,8 +39,6 @@ DOCKER_DEPLOYMENT.md
 docs/
 
 # Installation scripts (for local development only, not needed in Docker image)
-install_cpu.bat
-install_cpu.sh
 
 # Testing
 .pytest_cache/
@@ -64,7 +62,7 @@ htmlcov/
 # data/milvus/
 # data/mysql/
 # data/*.txt
-# data/
+data/
 
 # Model files (large, provided via volume mounts)
 # configs/*.pt
@@ -80,4 +78,3 @@ config_manager.py
 *.bak
 .DS_Store
 Thumbs.db
-

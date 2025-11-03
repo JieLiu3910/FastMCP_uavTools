@@ -32,6 +32,7 @@ RUN apt-get update && \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy dependency files (leverage Docker cache layer)
+
 COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies
@@ -39,12 +40,12 @@ COPY pyproject.toml uv.lock ./
 # --frozen: Use lockfile without updates
 RUN uv sync --frozen --no-cache
 
-# Copy startup script and set permissions
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 # Copy project code
 COPY . .
+
+# Copy startup script and set permissions
+# COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh /app/start.sh
 
 # Create necessary directories
 RUN mkdir -p \
@@ -57,15 +58,14 @@ RUN mkdir -p \
     /app/results/history_image \
     /app/results/objects_image 
 
-# copy file into image
-COPY config_manager_docker.py /app/config_manager.py
-COPY .env /app/.env
 
 # Mount volumes
 # VOLUME ["/app/configs"]
 # VOLUME ["/app/data"]
 # VOLUME ["/app/model"]
 # VOLUME ["/app/results"]
+
+COPY config_manager_docker.py /app/config_manager.py 
 
 # Expose port
 EXPOSE 5000
@@ -75,9 +75,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
 # Use startup script
-ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Startup command
 # CMD ["uv", "run", "api_server:socket_app", "--host", "0.0.0.0", "--port", "5000"]
-CMD ["uv", "run", "api_server.py"]
+# CMD ["uv", "run", "api_server.py"]
+CMD ["./start.sh"]
 

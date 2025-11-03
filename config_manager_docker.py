@@ -4,12 +4,18 @@ from pathlib import Path
 from typing import Optional
 from pprint import pprint   
   
-def load_config():
+def load_config(config_file: Optional[str] = None) -> dict:
     """加载 YAML 配置文件"""
+
+    if config_file is None:
+        # 从当前文件位置计算项目根目录
+        custom_config = '/app/configs/config.yaml'
+    else:
+        custom_config = config_file
 
     # 先加载默认配置
     default_config = '/app/configs/config.default.yaml'
-    custom_config = '/app/configs/config.yaml'
+    # custom_config = '/app/configs/config.yaml'
     # default_config = '/mnt/docker/FastMCP_uavTools_v1.3/configs/config.default.yaml'
     # custom_config = '/mnt/docker/FastMCP_uavTools_v1.3/configs/config.yaml'
 

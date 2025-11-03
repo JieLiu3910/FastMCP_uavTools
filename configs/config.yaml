@@ -44,7 +44,7 @@ mae_model_path: "./model/saved_internvit_model.pth"
 
 # Milvus 数据库配置
 milvus:
-  host: "127.0.0.1"
+  host: "10.200.50.5"
   port: "19530"
   collections:
     # history: "images_vector_history"
@@ -62,16 +62,16 @@ milvus:
 # -------------     MySQL 数据库配置       -------------------
 
 mysql_image:
-  host: "127.0.0.1"
+  host: "10.200.50.5"
   port: 3306
   user: "root"
   password: "123456"
   database: "Object_detection_db"     #  默认历史图像数据库
-  table_name: "history_object_images" # 默认历史图像表名
+  table_name: "clip_history" # 默认历史图像表名
 
 # MySQL 装备数据库配置
 mysql_equipment:
-  host: "127.0.0.1"
+  host: "10.200.50.5"
   port: 3306
   user: "root"
   password: "123456"

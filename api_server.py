@@ -27,6 +27,9 @@ import requests
 import socketio
 import uvicorn
 import traceback
+import pymysql
+from pymysql.cursors import DictCursor
+from decimal import Decimal
 
 from datetime import datetime
 from pathlib import Path
@@ -124,6 +127,7 @@ def start_config_watcher():
 # 服务端口
 PORT = global_config["api_url_port"]
 BASE_URL = f"http://localhost:{PORT}"
+MIDDLEWARE_URL = os.getenv("MIDDLEWARE_URL", f"http://localhost:{PORT}")
 
 PHOTOGRAPHS_URL = f"/results/photographs/"
 PREDICT_URL = f"/results/predicts/"
@@ -327,6 +331,22 @@ class EquipmentQueryRequest(BaseModel):
     database: str = None
     table_name: str = None
     limit: int = 30
+
+
+class LocalShipSearchRequest(BaseModel):
+    """本地船舶信息查询请求模型"""
+    longitude: float = Field(..., description="中心点经度")
+    latitude: float = Field(..., description="中心点纬度")
+    radius: int = Field(50, description="查询半径（公里）")
+    time: Optional[List[Optional[str]]] = Field(None, description="时间范围 [start_time, end_time]")
+    
+    # 数据库连接参数
+    db_host: str = Field("localhost", description="数据库主机地址")
+    db_port: int = Field(3306, description="数据库端口")
+    db_user: str = Field("root", description="数据库用户名")
+    db_password: str = Field("123456", description="数据库密码")
+    db_name: str = Field("shipinfo_db", description="数据库名称")
+    db_table: str = Field("shipinfo_metadata", description="数据表名称")
 
 
 # ======================================================================================================
@@ -587,7 +607,7 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
     BROADCAST_INTERVAL = 1  # 无人机数据广播时间间隔，单位：秒 （） 
     EVENT_TYPE = "uavPoint_update"  # 无人机定位点数据
 
-    POINT_INTERVAL = 5  # 无人机点个数间隔（每隔 POINT_INTERVAL 个点广播一次）
+    POINT_INTERVAL = 3  # 无人机点个数间隔（每隔 POINT_INTERVAL 个点广播一次）
 
     # 解析请求数据
     
@@ -627,10 +647,10 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
         print(f"🎯 数据回传间隔: 0.5秒")
 
         # 设置广播点位参数
-        # 无人机开始拍摄前N个点位开始
+        # 无人机开始拍摄前 前N个点位开始
         before_point_index = 0 if start_index - int(num_points / 2 ) < 0 else start_index - int(num_points / 2 )
 
-        # 无人机开始拍位置点位后,显示N个点结束
+        # 无人机开始拍位置点位 后显示N个点位结束
         if start_index + int(num_points / 2 ) > len(waypoints):
             if int(num_points / 2 / POINT_INTERVAL) < 10:
                 after_point_index = len(waypoints)
@@ -650,6 +670,7 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
             for index, waypoint in enumerate(waypoints):
                 # 从开始拍摄前10个点开始广播，开始后50个点结束（展示效果，节省时间），
                 # 真实情况可注释掉这个判断
+
                 
                 if index > before_point_index  and index < start_index:
                     if index % 10 == 0:
@@ -680,7 +701,7 @@ async def broadcast_uavPoint(request: BroadcastUAVPointRequest) -> JSONResponse:
                             print(f"❌ 回传第 {index + 1} 个路径点时发生错误: {str(e)}")
                             continue
 
-                if  start_index < index and index < after_point_index:
+                if index > start_index and index < after_point_index:
                     if index % POINT_INTERVAL == 0:
                         try:
                             # 构建单个waypoint的广播数据
@@ -1008,7 +1029,7 @@ async def objects_searcher(request: TargetSearchRequest):
             try:
                 # 检索目标图像（直接传递文件路径）
                 # target_results = search_image_from_milvus(query_image=image_path, query_type="target")
-                target_results = clip_searcher(query_image=image_path,configs=global_config)
+                target_results = clip_searcher(query_image=image_path,query_type="target")
 
                 print(f"找到 {len(target_results)} 个目标图像相似结果")
 
@@ -1128,7 +1149,7 @@ async def history_searcher(request: TargetSearchRequest):
                 # ----------  stpe1：从 Milvus 获取相似度信息 ----------
 
                 # milvus_results = search_image_from_milvus(query_image=image_path, query_type="history")
-                milvus_results = clip_searcher(query_image=image_path,configs=global_config)
+                milvus_results = clip_searcher(query_image=image_path,query_type="history")
                 print(f"Milvus历史图像相似结果： {len(milvus_results)} 个")
                 # pprint(milvus_results)
                 print("-"*100)
@@ -1909,6 +1930,110 @@ async def satellite_time_search(request: strTypeRequest) -> JSONResponse:
         print(f"❌ {error_msg}")
         print(f"错误详情:\n {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.post('/shipinfo_search', operation_id="shipinfo_search")
+async def shipinfo_search(
+    center_x: float = Body(...),
+    center_y: float = Body(...),
+    resolution: float = Body(50),
+):
+    """
+    本地船舶信息查询API，根据经纬度位置查询附近的船舶信息
+    
+    Args:
+        center_x: 中心点经度
+        center_y: 中心点纬度
+        resolution: 查询半径（公里），默认50km
+    
+    Returns:
+        船舶信息列表
+    """
+    
+    print(f"🚢 收到船舶信息API请求: center=({center_x}, {center_y}), radius={resolution}km")
+    
+    # 从环境变量获取数据库配置
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = int(os.getenv("DB_PORT", 3306))
+    db_user = os.getenv("DB_USER", "root")
+    db_password = os.getenv("DB_PASSWORD", "123456")
+    db_name = os.getenv("DB_NAME", "shipinfo_db")
+    db_table = os.getenv("DB_TABLE", "shipinfo_metadata")
+    
+    print(f"📊 数据库配置: host={db_host}, port={db_port}, db={db_name}, table={db_table}")
+    
+    connection = None
+    
+    try:
+        # 连接数据库
+        connection = pymysql.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            database=db_name,
+            charset="utf8mb4",
+            cursorclass=DictCursor,
+        )
+        
+        with connection.cursor() as cursor:
+            # 查询指定位置附近的船舶
+            radius_km = resolution
+            
+            query = f"""
+            SELECT 
+                id, MMSI, IMO, ship_name, call_sign, latitude, longitude,
+                ship_heading, ship_type, track_heading, ship_length, ship_width,
+                pre_loading_port, pre_loading_time, draft, update_time,
+                latest_ship_position, query_time
+            FROM `{db_table}`
+            WHERE ST_Distance_Sphere(location, ST_SRID(POINT(%s, %s), 4326)) <= %s
+            """
+            
+            radius_in_meters = radius_km * 1000
+            print(f"🔍 执行数据库查询:")
+            print(f"  位置: ({center_x}, {center_y})")
+            print(f"  半径: {radius_km}km ({radius_in_meters}m)")
+            
+            cursor.execute(query, (float(center_x), float(center_y), radius_in_meters))
+            ships = cursor.fetchall()
+            
+            print(f"✅ 查询到 {len(ships)} 艘船舶")
+            
+            # 转换数据类型为JSON可序列化格式
+            import datetime as dt_module
+            result_data = []
+            for ship in ships:
+                # 转换 Decimal 为 float
+                if 'latitude' in ship and ship['latitude'] is not None:
+                    ship['latitude'] = float(ship['latitude'])
+                if 'longitude' in ship and ship['longitude'] is not None:
+                    ship['longitude'] = float(ship['longitude'])
+                
+                # 转换 datetime 为字符串
+                if 'update_time' in ship and ship['update_time'] is not None:
+                    if isinstance(ship['update_time'], (dt_module.datetime, dt_module.date)):
+                        ship['update_time'] = ship['update_time'].isoformat()
+                if 'query_time' in ship and ship['query_time'] is not None:
+                    if isinstance(ship['query_time'], (dt_module.datetime, dt_module.date)):
+                        ship['query_time'] = ship['query_time'].isoformat()
+                
+                result_data.append(ship)
+            
+            return JSONResponse(content=result_data)
+            
+    except pymysql.Error as e:
+        error_msg = f"数据库错误: {e}"
+        print(f"✗ {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        error_msg = f"查询过程中发生未知错误: {e}"
+        print(f"✗ {error_msg}")
+        print(f"错误详情:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
+    finally:
+        if connection:
+            connection.close()
 
 
 # ============================================    function tools   =================================================

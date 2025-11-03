@@ -41,6 +41,8 @@ def search_image_from_milvus(
             - metadata: 元数据
     """
     # 加载配置
+    if config_file is None:
+        config_file = "configs/config.yaml"
     configs = load_config(config_file)
     
     # 加载 CLIP 模型
