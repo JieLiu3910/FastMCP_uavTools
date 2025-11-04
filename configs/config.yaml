@@ -60,7 +60,12 @@ milvus:
 
 
 # -------------     MySQL 数据库配置       -------------------
+mysql_host: "10.200.50.5"
+mysql_port: 3306
+mysql_user: "root"
+mysql_password: "123456"
 
+# 目标图像数据库
 mysql_image:
   host: "10.200.50.5"
   port: 3306
@@ -78,7 +83,18 @@ mysql_equipment:
   database: "Equipments_db"
   table_name: "equipment_data"
 
+# 船舶数据库
+mysql_shipinfo:
+  host: "10.200.50.5"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "shipinfo_db"
+  table_name: "shipinfo_metadata"
 
+mysql_rsimage:
+  database: "RS_images_db"
+  table_name: "RS_images_metadata"
 # -------------     向量+数据库搜索 配置       -------------------
 
 # 历史目标图像搜索参数

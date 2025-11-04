@@ -310,12 +310,12 @@ class RSimageRrequest(BaseModel):
     limit: Optional[int] = None  # 限制返回记录数
 
     # MySQL存储参数
-    host: Optional[str] = "localhost"  # 数据库地址
-    port: Optional[int] = 3306  # 数据库端口
-    user: Optional[str] = "root"  # 数据库用户名
-    password: Optional[str] = "123456"  # 数据库密码
-    database: Optional[str] = "RS_images_db"  # 数据库名称
-    table_name: Optional[str] = "RS_images_metadata"  # 数据库表名
+    host: Optional[str] = global_config["mysql_host"] or "localhost" # 数据库地址
+    port: Optional[int] = global_config["mysql_port"]  or 3306  # 数据库端口
+    user: Optional[str] = global_config["mysql_user"] or "root"  # 数据库用户名
+    password: Optional[str] = global_config["mysql_password"] or "123456"  # 数据库密码
+    database: Optional[str] = global_config["mysql_rsimage"]["database"] or "RS_images_db"  # 数据库名称
+    table_name: Optional[str] = global_config["mysql_rsimage"]["table_name"] or "RS_images_metadata"  # 数据库表名
 
     # class Config:
     #     extra = "forbid"  # 禁止额外字段，确保API调用时参数准确
@@ -1953,13 +1953,24 @@ async def shipinfo_search(
     print(f"🚢 收到船舶信息API请求: center=({center_x}, {center_y}), radius={resolution}km")
     
     # 从环境变量获取数据库配置
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = int(os.getenv("DB_PORT", 3306))
-    db_user = os.getenv("DB_USER", "root")
-    db_password = os.getenv("DB_PASSWORD", "123456")
-    db_name = os.getenv("DB_NAME", "shipinfo_db")
-    db_table = os.getenv("DB_TABLE", "shipinfo_metadata")
-    
+    # db_host = os.getenv("DB_HOST", "localhost")
+    # db_port = int(os.getenv("DB_PORT", 3306))
+    # db_user = os.getenv("DB_USER", "root")
+    # db_password = os.getenv("DB_PASSWORD", "123456")
+    # db_name = os.getenv("DB_NAME", "shipinfo_db")
+    # db_table = os.getenv("DB_TABLE", "shipinfo_metadata")
+
+    ship_config = global_config["mysql_shipinfo"]
+
+    db_host = ship_config.get("host", "localhost")
+    db_user = ship_config.get("user", "root")
+    db_port = ship_config.get("port", 3306)
+    db_password = ship_config.get("password", "123456")
+    db_name = ship_config.get("database", "shipinfo_db")
+    db_table = ship_config.get("table", "shipinfo_metadata")
+
+    # 使用配置文件中的数据库设置
+    db_port = int(ship_config.get("port", 3306))
     print(f"📊 数据库配置: host={db_host}, port={db_port}, db={db_name}, table={db_table}")
     
     connection = None
