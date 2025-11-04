@@ -310,12 +310,12 @@ class RSimageRrequest(BaseModel):
     limit: Optional[int] = None  # 限制返回记录数
 
     # MySQL存储参数
-    host: Optional[str] = "localhost"  # 数据库地址
-    port: Optional[int] = 3306  # 数据库端口
-    user: Optional[str] = "root"  # 数据库用户名
-    password: Optional[str] = "123456"  # 数据库密码
-    database: Optional[str] = "RS_images_db"  # 数据库名称
-    table_name: Optional[str] = "RS_images_metadata"  # 数据库表名
+    host: Optional[str] = global_config["mysql_host"] or "localhost" # 数据库地址
+    port: Optional[int] = global_config["mysql_port"]  or 3306  # 数据库端口
+    user: Optional[str] = global_config["mysql_user"] or "root"  # 数据库用户名
+    password: Optional[str] = global_config["mysql_password"] or "123456"  # 数据库密码
+    database: Optional[str] = global_config["mysql_rsimage"]["database"] or "RS_images_db"  # 数据库名称
+    table_name: Optional[str] = global_config["mysql_rsimage"]["table_name"] or "RS_images_metadata"  # 数据库表名
 
     # class Config:
     #     extra = "forbid"  # 禁止额外字段，确保API调用时参数准确
@@ -384,6 +384,11 @@ app.add_middleware(
 @sio.event
 async def connect(sid, environ):
     print(f"🔗 新客户端连接: {sid}")
+    # 将新客户端添加到活动客户端列表
+    active_clients.add(sid)
+    # 发送欢迎消息和初始心跳
+    await sio.emit("welcome", {"message": "Connected to server", "clientId": sid}, to=sid)
+    await sio.emit("heartbeat", {"timestamp": datetime.now().isoformat()}, to=sid)
     return True  # 接受连接
 
 # 客户端加入房间事件
@@ -406,7 +411,57 @@ async def leave(sid, data):
 @sio.event
 async def disconnect(sid):
     print(f"🔌 客户端断开连接: {sid}")
+    # 从活动客户端列表中移除
+    if sid in active_clients:
+        active_clients.remove(sid)
+    # 如果有其他清理工作也可以在这里添加
 
+# 存储活动客户端的集合
+active_clients = set()
+
+# 心跳任务引用
+heartbeat_task = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initializes resources on application startup."""
+    start_config_watcher()
+    # 启动心跳任务
+    global heartbeat_task
+    heartbeat_task = asyncio.create_task(heartbeat_worker())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on application shutdown."""
+    global heartbeat_task
+    if heartbeat_task:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
+async def heartbeat_worker():
+    """定期向所有连接的客户端发送心跳消息"""
+    while True:
+        try:
+            # 复制当前活动客户端列表以避免在迭代时修改集合
+            clients_copy = active_clients.copy()
+            for sid in clients_copy:
+                try:
+                    await sio.emit("heartbeat", {"timestamp": datetime.now().isoformat()}, to=sid)
+                except Exception as e:
+                    print(f"❌ 向客户端 {sid} 发送心跳失败: {e}")
+                    # 从活动客户端中移除失效的连接
+                    active_clients.discard(sid)
+            
+            # 每30秒发送一次心跳
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            print("-heartbeat worker cancelled")
+            break
+        except Exception as e:
+            print(f"❌ 心跳工作中发生错误: {e}")
 
 # 6. FastAPI-MCP 服务器设置
 # 创建Socket.IO ASGI应用
@@ -1953,13 +2008,24 @@ async def shipinfo_search(
     print(f"🚢 收到船舶信息API请求: center=({center_x}, {center_y}), radius={resolution}km")
     
     # 从环境变量获取数据库配置
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = int(os.getenv("DB_PORT", 3306))
-    db_user = os.getenv("DB_USER", "root")
-    db_password = os.getenv("DB_PASSWORD", "123456")
-    db_name = os.getenv("DB_NAME", "shipinfo_db")
-    db_table = os.getenv("DB_TABLE", "shipinfo_metadata")
-    
+    # db_host = os.getenv("DB_HOST", "localhost")
+    # db_port = int(os.getenv("DB_PORT", 3306))
+    # db_user = os.getenv("DB_USER", "root")
+    # db_password = os.getenv("DB_PASSWORD", "123456")
+    # db_name = os.getenv("DB_NAME", "shipinfo_db")
+    # db_table = os.getenv("DB_TABLE", "shipinfo_metadata")
+
+    ship_config = global_config["mysql_shipinfo"]
+
+    db_host = ship_config.get("host", "localhost")
+    db_user = ship_config.get("user", "root")
+    db_port = ship_config.get("port", 3306)
+    db_password = ship_config.get("password", "123456")
+    db_name = ship_config.get("database", "shipinfo_db")
+    db_table = ship_config.get("table", "shipinfo_metadata")
+
+    # 使用配置文件中的数据库设置
+    db_port = int(ship_config.get("port", 3306))
     print(f"📊 数据库配置: host={db_host}, port={db_port}, db={db_name}, table={db_table}")
     
     connection = None
